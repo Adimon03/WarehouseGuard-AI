@@ -2,106 +2,45 @@
 
 **Intelligent Warehouse Monitoring & Risk Management System**
 
-An end-to-end warehouse monitoring platform that tracks temperature, humidity, occupancy, door events and sensor health across warehouse zones. Automatically detects abnormal conditions, identifies affected inventory lots, generates risk alerts and recommends inspections and remediation actions.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React.js, Tailwind CSS, Recharts |
-| Backend | Python, FastAPI |
-| Database | SQLite (PostgreSQL-compatible SQLAlchemy ORM) |
-| Data Processing | Pandas, NumPy |
-| Testing | Pytest |
-
-## Project Structure
-
-```
-warehouseguard-ai/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── database.py          # DB engine & session
-│   │   ├── models.py            # SQLAlchemy ORM models
-│   │   ├── schemas.py           # Pydantic API schemas
-│   │   ├── data_generator.py    # Synthetic data generator (seed: 20261022)
-│   │   ├── anomaly_detection.py # Rule-based anomaly detection
-│   │   ├── analytics.py         # KPIs, trends, alert metrics
-│   │   ├── validation.py        # Data quality & validation checks
-│   │   └── routers/             # REST API route modules
-│   ├── tests/                   # Pytest test suite
-│   ├── requirements.txt
-│   └── pytest.ini
-├── frontend/
-│   ├── src/
-│   │   ├── api/client.js        # API client
-│   │   ├── components/           # Shared UI components
-│   │   └── pages/               # Dashboard pages
-│   ├── package.json
-│   └── vite.config.js
-├── data/                        # Generated SQLite DB
-├── docs/                        # Data dictionary & schema
-├── README.md
-├── AI_USAGE.md
-└── PROMPT_HISTORY.md
-```
+Monitors temperature, humidity, occupancy and door events by warehouse zone and alerts on risk conditions. Generates synthetic data with a fixed seed, applies rule-based anomaly detection, identifies affected inventory, and produces validation reports with reproducibility checks.
 
 ## Quick Start
-
-### 1. Backend Setup
 
 ```bash
 cd backend
 pip install -r requirements.txt
 
-# Generate starter dataset and run detection
-python -c "
-import sys; sys.path.insert(0, '.')
-from app.database import SessionLocal
-from app.data_generator import generate_dataset
-from app.anomaly_detection import run_detection
-db = SessionLocal()
-generate_dataset(db, full=False)  # full=True for 1M readings
-run_detection(db)
-print('Done!')
-"
-
-# Start the API server
-uvicorn app.main:app --reload --port 8000
+# Generate data, run detection, export CSV/JSON, validate, check reproducibility
+python run.py            # starter dataset
+python run.py --full      # full dataset (1M readings, 10K lots)
 ```
 
-### 2. Frontend Setup
+Output files are saved to `data/` (CSV per table, ground_truth.csv/json, validation_summary.json).
+
+## Run Tests
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd backend
+pytest
 ```
 
-Open http://localhost:5173 to view the dashboard.
+## Run the Dashboard (optional)
 
-### 3. Using the API
+```bash
+# Terminal 1 — backend
+cd backend
+uvicorn app.main:app --reload --port 8000
 
-The API is available at http://localhost:8000. Key endpoints:
+# Terminal 2 — frontend
+cd frontend
+npm install && npm run dev
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/system/generate?full=true` | Generate full dataset (1M readings) |
-| POST | `/api/system/generate?full=false` | Generate starter dataset |
-| POST | `/api/system/detect` | Run anomaly detection |
-| POST | `/api/system/generate-and-detect` | Generate + detect in one call |
-| GET | `/api/system/status` | Check data status |
-| GET | `/api/analytics/kpis` | Executive KPIs |
-| GET | `/api/alarms/` | List alarms (with filters) |
-| GET | `/api/validation/report` | Validation report |
-| GET | `/api/exports/csv/{table}` | Export table as CSV |
-| GET | `/api/system/data-dictionary` | Data dictionary |
+Open http://localhost:5173 for the dashboard, http://localhost:8000/docs for API docs.
 
-Interactive API docs at http://localhost:8000/docs
+## Data Generation
 
-## Dataset
-
-Generated with a fixed seed of **20261022** for full reproducibility.
+Fixed seed: **20261022**. Same seed produces identical row counts across runs (verified by `run.py`).
 
 | Entity | Full Dataset | Starter Dataset |
 |--------|-------------|-----------------|
@@ -111,42 +50,102 @@ Generated with a fixed seed of **20261022** for full reproducibility.
 | Sensor Readings | 1,000,000 | 18,000 |
 | Inventory Lots | 10,000 | 500 |
 
+### ID Naming Conventions
+
+| Entity | Format | Example |
+|--------|--------|---------|
+| Warehouse | WH-NNN | WH-001 |
+| Zone | ZONE-WWW-NNN | ZONE-001-001 |
+| Sensor | SNS-ZZZ-TYPE-NN | SNS-001-TEMP-01 |
+| Reading | RDG-NNNNNNN | RDG-0000001 |
+| Inventory Lot | LOT-2026-NNNNNN | LOT-2026-000001 |
+| Alarm | ALM-NNNNNN | ALM-000001 |
+| Inspection | INSP-NNNNNN | INSP-000001 |
+| Remediation | REM-NNNNNN | REM-000001 |
+
+## Entities & Relationships
+
+```
+Warehouse (1) → (N) Zone → (N) Sensor → (N) SensorReading
+Zone → (N) DoorEvent
+Zone → (N) InventoryLot
+StorageRequirement ← InventoryLot.product_category
+Alarm → (N:M) InventoryLot  (via AlarmInventoryLot)
+Alarm → (N) Inspection
+Alarm → (N) Remediation
+GroundTruthAnomaly (isolated — never used by detection)
+```
+
+Cardinalities: Warehouse:Zone is 1:N, Zone:Sensor is 1:N, Alarm:InventoryLot is N:M (bridge table), Sensor:SensorReading is 1:N.
+
 ## Anomaly Detection
 
-The system detects:
-- Temperature and humidity violations (vs zone limits)
-- Prolonged door-open events (>30 minutes)
-- Abnormal occupancy (exceeds zone max)
-- Missing sensor readings / sensor outages (NOT treated as normal)
-- Sensor drift (gradual baseline deviation)
-- Inventory assigned to incompatible zones
+Rule-based detection using product-specific storage requirements:
 
-Each alarm is linked to affected inventory lots based on zone and time overlap.
+- **Temperature/humidity violations** — readings outside zone limits
+- **Prolonged door-open** — door events > 30 minutes
+- **Abnormal occupancy** — exceeds zone max_occupancy
+- **Sensor outages** — missing readings flagged as anomalies (NOT treated as normal)
+- **Sensor drift** — gradual baseline deviation detected via quartile comparison
+- **Incompatible inventory** — product category assigned to wrong zone type
+
+Each alarm links to affected inventory lots via time + zone overlap.
 
 ## Four Negative Scenarios
 
-1. **Inventory in incompatible zone** — detected by anomaly detection and validation
-2. **Sensor mapped to multiple zones without justification** — detected by validation
-3. **Missing readings treated as normal** — detection generates `sensor_outage` alarms
-4. **Alarm not linked to affected inventory** — detected by validation
+1. **Lot assigned to incompatible zone** — detected by anomaly detection and validation
+2. **Sensor mapped to multiple zones without rationale** — detected by validation
+3. **Reading gap treated as normal** — detection generates `sensor_outage` alarms
+4. **Alarm not linked to affected lots** — detected by validation
 
-## Analytics & Validation
+Ground-truth labels are stored separately (`ground_truth_anomalies` table, exported as `ground_truth.csv/json`) and never queried by detection logic.
+
+## Validation
+
+Checks: primary-key uniqueness, foreign-key integrity, allowed enums, date ordering, lifecycle transitions, duplicate detection, inventory relationships, and all four negative scenarios.
+
+## Evaluation Metrics
 
 - Environmental compliance rate
-- Sensor availability and missing-reading percentage
+- Sensor availability
+- Missing-reading percentage
 - Alert precision, recall, F1-score (vs ground truth)
 - Mean time to acknowledge/resolve
-- Automated validation for PKs, FKs, duplicates, allowed values, date ordering, lifecycle transitions
 
-## Testing
+## Exports
 
-```bash
-cd backend
-pytest
+`run.py` exports to `data/`:
+- CSV per table (warehouses.csv, zones.csv, sensors.csv, sensor_readings.csv, etc.)
+- `ground_truth.csv` + `ground_truth.json`
+- `validation_summary.json`
+
+## Tech Stack
+
+- Backend: Python, FastAPI, SQLAlchemy, SQLite
+- Data Processing: NumPy, Pandas
+- Frontend: React, Tailwind CSS, Recharts
+- Testing: Pytest
+
+## Project Structure
+
 ```
-
-Test coverage: data generation, referential integrity, reproducibility, anomaly detection, inventory impact, alert generation, API endpoints, and negative scenarios.
-
-## License
-
-This project is for educational/demonstration purposes.
+backend/
+  app/
+    models.py              # 13 SQLAlchemy ORM models
+    data_generator.py     # Synthetic data generator (seed: 20261022)
+    anomaly_detection.py  # Rule-based detection + alarm/inspection/remediation
+    analytics.py          # KPIs, trends, precision/recall/F1
+    validation.py         # PK/FK/enum/date/lifecycle validation + negative scenarios
+    main.py               # FastAPI app
+    routers/              # 13 REST API modules
+  tests/                  # 87 Pytest tests
+  run.py                  # End-to-end runner (generate → detect → export → validate)
+  requirements.txt
+frontend/
+  src/                    # React dashboard (10 pages)
+  package.json
+docs/
+  data_dictionary.md      # Field-level data dictionary
+  schema.md               # Entity relationships
+data/                     # Generated CSV/JSON exports
+```

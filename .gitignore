@@ -11,6 +11,8 @@ venv/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+data/*.csv
+data/*.json
 
 # Frontend
 node_modules/

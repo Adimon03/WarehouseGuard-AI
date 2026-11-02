@@ -17,6 +17,7 @@ class Warehouse(Base):
     __tablename__ = "warehouses"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(20), nullable=True, unique=True)  # WH-001
     name = Column(String(120), nullable=False, unique=True)
     location = Column(String(200), nullable=False)
     total_area_sqm = Column(Float, nullable=False)
@@ -30,6 +31,7 @@ class Zone(Base):
     __tablename__ = "zones"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(30), nullable=True, unique=True)  # ZONE-001-001
     warehouse_id = Column(Integer, ForeignKey("warehouses.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(120), nullable=False)
     zone_type = Column(String(40), nullable=False)  # ambient | cold_storage | frozen | hazardous
@@ -50,6 +52,7 @@ class Sensor(Base):
     __tablename__ = "sensors"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(40), nullable=True, unique=True)  # SNS-001-TEMP-01
     zone_id = Column(Integer, ForeignKey("zones.id", ondelete="CASCADE"), nullable=False)
     sensor_type = Column(String(40), nullable=False)  # temperature | humidity | occupancy | door
     status = Column(String(40), nullable=False, default="active")  # active | drift | offline
@@ -88,6 +91,7 @@ class SensorReading(Base):
     __tablename__ = "sensor_readings"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(80), nullable=True)  # RDG-0000001
     sensor_id = Column(Integer, ForeignKey("sensors.id", ondelete="CASCADE"), nullable=False)
     reading_timestamp = Column(DateTime, nullable=False)
     temperature_c = Column(Float, nullable=True)
@@ -110,6 +114,7 @@ class DoorEvent(Base):
     __tablename__ = "door_events"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(30), nullable=True)  # DEV-000001
     zone_id = Column(Integer, ForeignKey("zones.id", ondelete="CASCADE"), nullable=False)
     sensor_id = Column(Integer, ForeignKey("sensors.id", ondelete="CASCADE"), nullable=False)
     event_timestamp = Column(DateTime, nullable=False)
@@ -142,6 +147,7 @@ class InventoryLot(Base):
     __tablename__ = "inventory_lots"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(30), nullable=True, unique=True)  # LOT-2026-000001
     zone_id = Column(Integer, ForeignKey("zones.id", ondelete="CASCADE"), nullable=False)
     product_name = Column(String(150), nullable=False)
     product_category = Column(String(80), nullable=False)
@@ -164,6 +170,7 @@ class Alarm(Base):
     __tablename__ = "alarms"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(30), nullable=True)  # ALM-000001
     alarm_type = Column(String(60), nullable=False)
     severity = Column(String(20), nullable=False)  # critical | warning | info
     zone_id = Column(Integer, ForeignKey("zones.id", ondelete="CASCADE"), nullable=False)
@@ -213,6 +220,7 @@ class Inspection(Base):
     __tablename__ = "inspections"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(30), nullable=True)  # INSP-000001
     alarm_id = Column(Integer, ForeignKey("alarms.id", ondelete="CASCADE"), nullable=False)
     inspector_name = Column(String(100), nullable=False)
     inspection_timestamp = Column(DateTime, nullable=False)
@@ -229,6 +237,7 @@ class Remediation(Base):
     __tablename__ = "remediations"
 
     id = Column(Integer, primary_key=True)
+    code = Column(String(30), nullable=True)  # REM-000001
     alarm_id = Column(Integer, ForeignKey("alarms.id", ondelete="CASCADE"), nullable=False)
     inspection_id = Column(Integer, ForeignKey("inspections.id", ondelete="SET NULL"), nullable=True)
     action_type = Column(String(60), nullable=False)

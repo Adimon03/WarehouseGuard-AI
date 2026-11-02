@@ -69,6 +69,9 @@ def run_detection(db: Session) -> dict:
 
     db.flush()
 
+    # Assign human-readable codes to all detection-generated records
+    _assign_codes(db)
+
     n_alarms = sum(stats.values())
     n_inspections, n_remediations = _generate_inspections_and_remediations(db)
 
@@ -84,6 +87,18 @@ def run_detection(db: Session) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 #  Helpers
 # ═══════════════════════════════════════════════════════════════════════════
+
+def _assign_codes(db: Session):
+    """Assign human-readable codes to detection-generated alarms, inspections,
+    and remediations that don't have one yet."""
+    for a in db.query(Alarm).filter(Alarm.code.is_(None)).all():
+        a.code = f"ALM-{a.id:06d}"
+    for i in db.query(Inspection).filter(Inspection.code.is_(None)).all():
+        i.code = f"INSP-{i.id:06d}"
+    for r in db.query(Remediation).filter(Remediation.code.is_(None)).all():
+        r.code = f"REM-{r.id:06d}"
+    db.flush()
+
 
 def _clear_detection_alarms(db: Session):
     """Delete all detection-sourced alarms and their children."""

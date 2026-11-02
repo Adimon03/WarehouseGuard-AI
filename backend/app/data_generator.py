@@ -46,6 +46,8 @@ STARTER_CONFIG = {
 # Door and humidity placed early so they appear even in starter (3-sensor) mode.
 SENSOR_TYPES = ["temperature", "humidity", "door", "occupancy", "temperature"]
 
+SENSOR_TYPE_CODES = {"temperature": "TEMP", "humidity": "HUM", "occupancy": "OCC", "door": "DOOR"}
+
 # Zone type baseline conditions
 ZONE_TYPES = ["ambient", "cold_storage", "frozen", "hazardous"]
 
@@ -236,6 +238,7 @@ def _gen_warehouses(db, rng, cfg) -> list[Warehouse]:
     for i in range(1, cfg["n_warehouses"] + 1):
         wh = Warehouse(
             id=i,
+            code=f"WH-{i:03d}",
             name=WAREHOUSE_NAMES[i - 1],
             location=WAREHOUSE_LOCATIONS[i - 1],
             total_area_sqm=float(rng.uniform(5000, 25000)),
@@ -259,6 +262,7 @@ def _gen_zones(db, rng, cfg, warehouses) -> list[Zone]:
             mid_hum = (cond["min_hum"] + cond["max_hum"]) / 2
             zone = Zone(
                 id=zone_id,
+                code=f"ZONE-{wh.id:03d}-{j + 1:03d}",
                 warehouse_id=wh.id,
                 name=f"Zone-{wh.id:02d}-{j + 1:02d}",
                 zone_type=zt,
@@ -292,6 +296,7 @@ def _gen_sensors(db, rng, cfg, zones) -> tuple[list[Sensor], dict]:
             calibrated = installed + timedelta(days=int(rng.integers(30, 60)))
             sensor = Sensor(
                 id=sensor_id,
+                code=f"SNS-{zone.id:03d}-{SENSOR_TYPE_CODES[stype]}-{k + 1:02d}",
                 zone_id=zone.id,
                 sensor_type=stype,
                 status="active",
@@ -487,6 +492,7 @@ def _gen_readings(db, rng, cfg, sensors, zones) -> tuple[list, dict]:
 
             rec = {
                 "id": reading_id,
+                "code": f"RDG-{reading_id:07d}",
                 "sensor_id": sensor.id,
                 "reading_timestamp": ts,
                 "temperature_c": temp_val,
@@ -594,6 +600,7 @@ def _gen_door_events(db, rng, cfg, zones, sensors, ground_truth) -> list:
 
             db.add(DoorEvent(
                 id=event_id,
+                code=f"DEV-{event_id:06d}",
                 zone_id=zone.id,
                 sensor_id=sensor.id,
                 event_timestamp=ts,
@@ -674,6 +681,7 @@ def _gen_inventory(db, rng, cfg, zones, ground_truth, data_start) -> list[Invent
 
         lot = InventoryLot(
             id=lot_id,
+            code=f"LOT-2026-{lot_id:06d}",
             zone_id=zone.id,
             product_name=product_name,
             product_category=category,
@@ -722,6 +730,7 @@ def _gen_pre_existing_alarms(db, rng, zones, inventory, ground_truth):
 
         alarm = Alarm(
             id=alarm_id,
+            code=f"ALM-{alarm_id:06d}",
             alarm_type="temperature_violation",
             severity=str(rng.choice(["critical", "warning"])),
             zone_id=zone.id,
